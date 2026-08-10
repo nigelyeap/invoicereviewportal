@@ -1,0 +1,229 @@
+// Invoice Review Portal — Prisma schema
+// See ~/.claude/plans/prancy-sleeping-feigenbaum.md for full design rationale.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Documents
+// ---------------------------------------------------------------------------
+
+model Document {
+  id               String        @id @default(cuid())
+  originalFilename String
+  storageKey       String
+  mimeType         String
+  fileSizeBytes    Int
+  pageCount        Int?
+  uploadedAt       DateTime      @default(now())
+  uploadedByName   String? // free text now; FK-ready later, no auth in v1
+
+  pages            DocumentPage[]
+  extractionJobs   ExtractionJob[]
+
+  @@map("documents")
+}
+
+model DocumentPage {
+  id             String   @id @default(cuid())
+  documentId     String
+  pageNumber     Int
+  width          Float?
+  height         Float?
+  ocrText        String? @db.Text
+  ocrTextBlocks  Json? // our own text-layer index for highlighting, independent of AgentStudio
+
+  document       Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, pageNumber])
+  @@map("document_pages")
+}
+
+// ---------------------------------------------------------------------------
+// Extraction jobs (background worker state machine)
+// ---------------------------------------------------------------------------
+
+enum ExtractionJobStatus {
+  PENDING
+  SUBMITTING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  TIMED_OUT
+}
+
+model ExtractionJob {
+  id                    String              @id @default(cuid())
+  documentId            String
+  status                ExtractionJobStatus @default(PENDING)
+
+  flowUuid              String?
+  externalFileId        String? // AgentStudio file_uuid from file/batch/init
+  externalSegmentCode   String? // AgentStudio segment_code for this session
+  externalStatusCode    String?
+
+  attemptCount          Int       @default(0)
+  nextPollAt            DateTime?
+
+  submittedAt           DateTime?
+  startedProcessingAt   DateTime?
+  completedAt           DateTime?
+
+  rawResponse           Json? // full raw answer / frames, kept for audit + reprocessing
+  errorMessage          String? @db.Text
+
+  appliedFieldTemplateId String?
+  appliedFieldTemplate   FieldTemplate? @relation(fields: [appliedFieldTemplateId], references: [id])
+
+  document              Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  extractedFields       ExtractedField[]
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([status, nextPollAt])
+  @@map("extraction_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Extracted fields
+// ---------------------------------------------------------------------------
+
+enum FieldGroup {
+  HEADER
+  LINE_ITEM
+  TOTALS
+}
+
+enum FieldDataType {
+  STRING
+  NUMBER
+  DATE
+  CURRENCY
+  EMAIL
+}
+
+enum ValidationStatus {
+  VALID
+  WARNING
+  INVALID
+  NOT_APPLICABLE
+}
+
+model ExtractedField {
+  id               String   @id @default(cuid())
+  extractionJobId  String
+
+  fieldKey         String // e.g. "customer_name"; line items as "line_item.<index>.<subfield>"
+  fieldGroup       FieldGroup
+  lineItemIndex    Int?
+
+  label            String
+  dataType         FieldDataType
+
+  originalValue    String? @db.Text // as first parsed, immutable
+  currentValue     String? @db.Text // editable by reviewer
+
+  // PIVOT (2026-08-09): sourced directly from AgentStudio's OCR-mode
+  // per-field confidence (see confidence.ts) now that the portal talks to
+  // offline_upload_file?extra_params=ocr instead of the old WS markdown
+  // chat transport. Falls back to a shape-check heuristic only in the rare
+  // case AgentStudio reports a value with no confidence at all.
+  confidenceScore  Float? // 0-1
+  confidenceRemark String? @db.Text
+
+  sourceText       String? @db.Text
+  sourcePageNumber Int?
+  // Real pixel-normalized [x_min,y_min,x_max,y_max] (0-1000 scale) from
+  // AgentStudio's OCR-mode response when reported for this field, null
+  // otherwise -- no longer permanently null (see the PIVOT note above).
+  sourceBbox       Json?
+
+  // Still portal-computed -- AgentStudio's OCR mode extracts but does not
+  // validate (see validationRules.ts).
+
+  validationStatus  ValidationStatus @default(NOT_APPLICABLE)
+  validationMessage String?          @db.Text
+
+  isSelected     Boolean @default(true)
+  displayOrder   Int     @default(0)
+  overrideLabel  String?
+  wasEdited      Boolean @default(false)
+
+  extractionJob  ExtractionJob @relation(fields: [extractionJobId], references: [id], onDelete: Cascade)
+  edits          FieldEdit[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([extractionJobId, fieldKey])
+  @@index([extractionJobId])
+  @@map("extracted_fields")
+}
+
+model FieldEdit {
+  id               String   @id @default(cuid())
+  extractedFieldId String
+  previousValue    String?  @db.Text
+  newValue         String?  @db.Text
+  editedAt         DateTime @default(now())
+  editedByName     String?
+  editReason       String?  @db.Text
+
+  extractedField   ExtractedField @relation(fields: [extractedFieldId], references: [id], onDelete: Cascade)
+
+  @@map("field_edits")
+}
+
+// ---------------------------------------------------------------------------
+// Field catalog + templates
+// ---------------------------------------------------------------------------
+
+model FieldCatalogEntry {
+  fieldKey        String        @id
+  label           String
+  dataType        FieldDataType
+  fieldGroup      FieldGroup
+  isLineItemField Boolean       @default(false)
+  description     String?       @db.Text
+
+  templateItems   FieldTemplateItem[]
+
+  @@map("field_catalog_entries")
+}
+
+model FieldTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  isDefault   Boolean  @default(false)
+
+  items         FieldTemplateItem[]
+  jobsAppliedTo ExtractionJob[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("field_templates")
+}
+
+model FieldTemplateItem {
+  id              String  @id @default(cuid())
+  fieldTemplateId String
+  fieldKey        String
+  displayOrder    Int     @default(0)
+  isRequired      Boolean @default(false)
+  overrideLabel   String?
+
+  fieldTemplate     FieldTemplate     @relation(fields: [fieldTemplateId], references: [id], onDelete: Cascade)
+  fieldCatalogEntry FieldCatalogEntry @relation(fields: [fieldKey], references: [fieldKey])
+
+  @@unique([fieldTemplateId, fieldKey])
+  @@map("field_template_items")
+}

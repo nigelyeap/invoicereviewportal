@@ -1,0 +1,58 @@
+# Production / any-Docker-host reference compose file.
+#
+# NOT used for local dev on this machine (Docker is not installed here) --
+# local dev instead runs against a native Homebrew Postgres
+# (`brew services start postgresql@16`) with `npm run dev` / `npm run worker`
+# directly on the host. Kept here as the documented, portable deployment
+# shape for anywhere Docker *is* available.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: invoice_review_portal
+      POSTGRES_PASSWORD: invoice_review_portal
+      POSTGRES_DB: invoice_review_portal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoice_review_portal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://invoice_review_portal:invoice_review_portal@postgres:5432/invoice_review_portal?schema=public
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/.data/uploads
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://invoice_review_portal:invoice_review_portal@postgres:5432/invoice_review_portal?schema=public
+    volumes:
+      - uploads_data:/app/.data/uploads
+
+volumes:
+  postgres_data:
+  uploads_data:

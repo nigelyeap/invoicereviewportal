@@ -1,0 +1,105 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1944 >>
+stream
+BT
+/F2 22 Tf
+1 0 0 1 50 740 Tm (INVOICE) Tj
+/F1 10 Tf
+1 0 0 1 420 744 Tm (INV-2026-0356) Tj
+/F2 11 Tf
+1 0 0 1 50 690 Tm (Northwind Logistics Pte Ltd) Tj
+/F1 10 Tf
+1 0 0 1 50 675 Tm (5 Tampines Central, #08-12, Singapore 529541) Tj
+/F2 10 Tf
+1 0 0 1 50 650 Tm (Bill To:) Tj
+/F2 11 Tf
+1 0 0 1 50 635 Tm (Harborview Retail Group) Tj
+/F1 10 Tf
+1 0 0 1 50 620 Tm (150 Orchard Road, #12-01, Singapore 238841) Tj
+1 0 0 1 50 605 Tm (finance@harborviewretail.sg) Tj
+/F2 10 Tf
+1 0 0 1 400 650 Tm (Invoice Number:) Tj
+/F1 10 Tf
+1 0 0 1 490 650 Tm (INV-2026-0356) Tj
+/F2 10 Tf
+1 0 0 1 400 635 Tm (Invoice Date:) Tj
+/F1 10 Tf
+1 0 0 1 490 635 Tm (2026-07-28) Tj
+/F2 10 Tf
+1 0 0 1 400 620 Tm (Due Date:) Tj
+/F1 10 Tf
+1 0 0 1 490 620 Tm (2026-08-27) Tj
+/F2 10 Tf
+1 0 0 1 50 547 Tm (Description) Tj
+1 0 0 1 350 547 Tm (Qty) Tj
+1 0 0 1 400 547 Tm (Unit Price) Tj
+1 0 0 1 490 547 Tm (Amount) Tj
+/F1 10 Tf
+1 0 0 1 50 519 Tm (1. Container Freight - SIN to LAX \(40ft\)) Tj
+1 0 0 1 350 519 Tm (2) Tj
+1 0 0 1 400 519 Tm (SGD 3,200.00) Tj
+1 0 0 1 490 519 Tm (SGD 6,400.00) Tj
+1 0 0 1 50 501 Tm (2. Customs Clearance Handling) Tj
+1 0 0 1 350 501 Tm (1) Tj
+1 0 0 1 400 501 Tm (SGD 450.00) Tj
+1 0 0 1 490 501 Tm (SGD 450.00) Tj
+1 0 0 1 50 483 Tm (3. Warehouse Storage - July) Tj
+1 0 0 1 350 483 Tm (30) Tj
+1 0 0 1 400 483 Tm (SGD 18.00) Tj
+1 0 0 1 490 483 Tm (SGD 540.00) Tj
+1 0 0 1 50 465 Tm (4. Last-mile Delivery) Tj
+1 0 0 1 350 465 Tm (12) Tj
+1 0 0 1 400 465 Tm (SGD 65.00) Tj
+1 0 0 1 490 465 Tm (SGD 780.00) Tj
+1 0 0 1 400 423 Tm (Subtotal:) Tj
+1 0 0 1 490 423 Tm (SGD 8,170.00) Tj
+1 0 0 1 400 407 Tm (Tax \(9%\):) Tj
+1 0 0 1 490 407 Tm (SGD 735.30) Tj
+/F2 11 Tf
+1 0 0 1 400 391 Tm (Total Due:) Tj
+1 0 0 1 490 391 Tm (SGD 8,905.30) Tj
+/F1 9 Tf
+1 0 0 1 50 330 Tm (Please quote invoice number on remittance. Bank details on file.) Tj
+ET
+1 w
+50 718 m 562 718 l S
+1 w
+50 573 m 562 573 l S
+0.5 w
+50 537 m 562 537 l S
+0.5 w
+350 441 m 562 441 l S
+0.5 w
+50 354 m 562 354 l S
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000002247 00000 n 
+0000002317 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+2392
+%%EOF

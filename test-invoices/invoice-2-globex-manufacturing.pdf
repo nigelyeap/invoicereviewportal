@@ -1,0 +1,101 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1788 >>
+stream
+BT
+/F2 22 Tf
+1 0 0 1 50 740 Tm (INVOICE) Tj
+/F1 10 Tf
+1 0 0 1 420 744 Tm (INV-2026-1187) Tj
+/F2 11 Tf
+1 0 0 1 50 690 Tm (Meridian Industrial Supply LLC) Tj
+/F1 10 Tf
+1 0 0 1 50 675 Tm (1400 Harbor Way, Suite 220, Oakland, CA 94607) Tj
+/F2 10 Tf
+1 0 0 1 50 650 Tm (Bill To:) Tj
+/F2 11 Tf
+1 0 0 1 50 635 Tm (Globex Manufacturing Corp) Tj
+/F1 10 Tf
+1 0 0 1 50 620 Tm (77 Foundry Road, Detroit, MI 48201) Tj
+1 0 0 1 50 605 Tm (ap@globexmfg.com) Tj
+/F2 10 Tf
+1 0 0 1 400 650 Tm (Invoice Number:) Tj
+/F1 10 Tf
+1 0 0 1 490 650 Tm (INV-2026-1187) Tj
+/F2 10 Tf
+1 0 0 1 400 635 Tm (Invoice Date:) Tj
+/F1 10 Tf
+1 0 0 1 490 635 Tm (2026-06-02) Tj
+/F2 10 Tf
+1 0 0 1 400 620 Tm (Due Date:) Tj
+/F1 10 Tf
+1 0 0 1 490 620 Tm (2026-07-02) Tj
+/F2 10 Tf
+1 0 0 1 50 547 Tm (Description) Tj
+1 0 0 1 350 547 Tm (Qty) Tj
+1 0 0 1 400 547 Tm (Unit Price) Tj
+1 0 0 1 490 547 Tm (Amount) Tj
+/F1 10 Tf
+1 0 0 1 50 519 Tm (1. Industrial Steel Brackets \(Model SB-40\)) Tj
+1 0 0 1 350 519 Tm (250) Tj
+1 0 0 1 400 519 Tm (USD 12.50) Tj
+1 0 0 1 490 519 Tm (USD 3,125.00) Tj
+1 0 0 1 50 501 Tm (2. Conveyor Belt Assembly, 6m) Tj
+1 0 0 1 350 501 Tm (4) Tj
+1 0 0 1 400 501 Tm (USD 890.00) Tj
+1 0 0 1 490 501 Tm (USD 3,560.00) Tj
+1 0 0 1 50 483 Tm (3. On-site Installation Labor) Tj
+1 0 0 1 350 483 Tm (16) Tj
+1 0 0 1 400 483 Tm (USD 95.00) Tj
+1 0 0 1 490 483 Tm (USD 1,520.00) Tj
+1 0 0 1 400 441 Tm (Subtotal:) Tj
+1 0 0 1 490 441 Tm (USD 8,205.00) Tj
+1 0 0 1 400 425 Tm (Tax \(9%\):) Tj
+1 0 0 1 490 425 Tm (USD 738.45) Tj
+/F2 11 Tf
+1 0 0 1 400 409 Tm (Total Due:) Tj
+1 0 0 1 490 409 Tm (USD 8,943.45) Tj
+/F1 9 Tf
+1 0 0 1 50 348 Tm (Net 30. Late payments subject to 1.5% monthly interest.) Tj
+ET
+1 w
+50 718 m 562 718 l S
+1 w
+50 573 m 562 573 l S
+0.5 w
+50 537 m 562 537 l S
+0.5 w
+350 459 m 562 459 l S
+0.5 w
+50 372 m 562 372 l S
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000002091 00000 n 
+0000002161 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+2236
+%%EOF

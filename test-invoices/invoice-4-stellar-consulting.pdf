@@ -1,0 +1,93 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1520 >>
+stream
+BT
+/F2 22 Tf
+1 0 0 1 50 740 Tm (INVOICE) Tj
+/F1 10 Tf
+1 0 0 1 420 744 Tm (INV-2026-0098) Tj
+/F2 11 Tf
+1 0 0 1 50 690 Tm (Stellar Consulting Group) Tj
+/F1 10 Tf
+1 0 0 1 50 675 Tm (220 Bay Street, Toronto, ON M5J 2W4) Tj
+/F2 10 Tf
+1 0 0 1 50 650 Tm (Bill To:) Tj
+/F2 11 Tf
+1 0 0 1 50 635 Tm (Brightpath Retail Ltd) Tj
+/F1 10 Tf
+1 0 0 1 50 620 Tm (9 King Street West, Toronto, ON M5H 1A1) Tj
+1 0 0 1 50 605 Tm (accounts@brightpathretail.ca) Tj
+/F2 10 Tf
+1 0 0 1 400 650 Tm (Invoice Number:) Tj
+/F1 10 Tf
+1 0 0 1 490 650 Tm (INV-2026-0098) Tj
+/F2 10 Tf
+1 0 0 1 400 635 Tm (Invoice Date:) Tj
+/F1 10 Tf
+1 0 0 1 490 635 Tm (2026-08-01) Tj
+/F2 10 Tf
+1 0 0 1 400 620 Tm (Due Date:) Tj
+/F1 10 Tf
+1 0 0 1 490 620 Tm (2026-08-15) Tj
+/F2 10 Tf
+1 0 0 1 50 547 Tm (Description) Tj
+1 0 0 1 350 547 Tm (Qty) Tj
+1 0 0 1 400 547 Tm (Unit Price) Tj
+1 0 0 1 490 547 Tm (Amount) Tj
+/F1 10 Tf
+1 0 0 1 50 519 Tm (1. Q3 Strategy Advisory - August Retainer) Tj
+1 0 0 1 350 519 Tm (1) Tj
+1 0 0 1 400 519 Tm (USD 4,200.00) Tj
+1 0 0 1 490 519 Tm (USD 4,200.00) Tj
+1 0 0 1 400 477 Tm (Subtotal:) Tj
+1 0 0 1 490 477 Tm (USD 4,200.00) Tj
+1 0 0 1 400 461 Tm (Tax \(9%\):) Tj
+1 0 0 1 490 461 Tm (USD 378.00) Tj
+/F2 11 Tf
+1 0 0 1 400 445 Tm (Total Due:) Tj
+1 0 0 1 490 445 Tm (USD 4,578.00) Tj
+/F1 9 Tf
+1 0 0 1 50 384 Tm (Single-line small invoice -- useful for quickly testing edits and export without much clutter.) Tj
+ET
+1 w
+50 718 m 562 718 l S
+1 w
+50 573 m 562 573 l S
+0.5 w
+50 537 m 562 537 l S
+0.5 w
+350 495 m 562 495 l S
+0.5 w
+50 408 m 562 408 l S
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000001823 00000 n 
+0000001893 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+1968
+%%EOF
