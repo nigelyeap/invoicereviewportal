@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { put, head } from "@vercel/blob";
+import { put, get } from "@vercel/blob";
 import { getEnv } from "@/lib/env";
 import type { StorageAdapter } from "./types";
 
@@ -13,14 +13,18 @@ import type { StorageAdapter } from "./types";
  * plain HTTPS, so it works identically regardless of which instance calls
  * it.
  *
- * PRIVACY NOTE: Vercel Blob objects are fetchable by anyone who has the
- * exact URL (there's no private/signed-URL mode at the base tier). This app
- * mitigates that the same way an unguessable S3 key would: storageKey is a
- * random UUID, and the client never sees a raw Blob URL -- it only ever
- * hits this app's own `/api/documents/[documentId]/file` route, which looks
- * the document up in Postgres first. If that's not strong enough isolation
- * for your data (e.g. compliance requirements), swap this adapter for one
- * backed by S3/R2 with presigned GETs instead -- same StorageAdapter shape.
+ * ACCESS MODE: this store is created as "private" (the Vercel dashboard's
+ * default for new Blob stores as of @vercel/blob 2.x) -- `access: "private"`
+ * here must match. Uploading with `access: "public"` against a private store
+ * fails outright ("Cannot use public access on a private store"), which is
+ * what originally shipped here and broke the very first live upload. Private
+ * blobs aren't fetchable by a bare URL at all (unlike the old public-only
+ * behavior this file's comment used to describe) -- reads go through
+ * `get()` below with the same read-write token used to write it, which is
+ * strictly better isolation: the random-UUID storageKey plus this app's own
+ * `/api/documents/[documentId]/file` route (Postgres lookup first) were
+ * already the intended access path; this just makes the underlying Blob
+ * object itself unreachable without the token too, not just unguessable.
  */
 export function createVercelBlobStorageAdapter(): StorageAdapter {
   // Auto-injected by Vercel itself once a Blob store is connected to the
@@ -31,7 +35,7 @@ export function createVercelBlobStorageAdapter(): StorageAdapter {
     const ext = path.extname(params.originalFilename);
     const storageKey = `uploads/${crypto.randomUUID()}${ext}`;
     await put(storageKey, params.buffer, {
-      access: "public",
+      access: "private",
       token,
       addRandomSuffix: false,
     });
@@ -39,12 +43,11 @@ export function createVercelBlobStorageAdapter(): StorageAdapter {
   }
 
   async function readStoredFile(storageKey: string): Promise<Buffer> {
-    const meta = await head(storageKey, { token });
-    const res = await fetch(meta.downloadUrl);
-    if (!res.ok) {
-      throw new Error(`Vercel Blob fetch failed for "${storageKey}": ${res.status} ${res.statusText}`);
+    const result = await get(storageKey, { access: "private", token });
+    if (!result?.stream) {
+      throw new Error(`Vercel Blob fetch failed for "${storageKey}": not found`);
     }
-    const arrayBuffer = await res.arrayBuffer();
+    const arrayBuffer = await new Response(result.stream).arrayBuffer();
     return Buffer.from(arrayBuffer);
   }
 
