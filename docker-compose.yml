@@ -2,9 +2,15 @@
 #
 # NOT used for local dev on this machine (Docker is not installed here) --
 # local dev instead runs against a native Homebrew Postgres
-# (`brew services start postgresql@16`) with `npm run dev` / `npm run worker`
-# directly on the host. Kept here as the documented, portable deployment
-# shape for anywhere Docker *is* available.
+# (`brew services start postgresql@16`) with `npm run dev` directly on the
+# host. Kept here as the documented, portable deployment shape for anywhere
+# Docker *is* available.
+#
+# No separate worker service (there used to be one, built from
+# Dockerfile.worker) -- as of 2026-08-10, AgentStudio extraction runs
+# in-process inside the "web" service via Next.js `after()`
+# (src/server/extractionRunner.ts), so a single container handles both the
+# UI/API and the background extraction work. See DEPLOYMENT.md.
 services:
   postgres:
     image: postgres:16-alpine
@@ -36,20 +42,6 @@ services:
       DATABASE_URL: postgresql://invoice_review_portal:invoice_review_portal@postgres:5432/invoice_review_portal?schema=public
     ports:
       - "3000:3000"
-    volumes:
-      - uploads_data:/app/.data/uploads
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://invoice_review_portal:invoice_review_portal@postgres:5432/invoice_review_portal?schema=public
     volumes:
       - uploads_data:/app/.data/uploads
 

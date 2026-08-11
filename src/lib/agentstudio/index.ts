@@ -9,14 +9,14 @@ export type { CatalogEntryLike, ExtractedFieldRow, TemplateItemLike } from "./ma
 let cached: AgentStudioClient | null = null;
 
 /**
- * The ONLY way src/server/*Service.ts and worker/* should obtain an
- * AgentStudio client -- never import client.ts or mockClient.ts directly.
- * Env-flag switchable (AGENTSTUDIO_CLIENT_MODE) so the whole pipeline is
- * testable without live credentials.
+ * The ONLY way src/server/*.ts should obtain an AgentStudio client -- never
+ * import client.ts or mockClient.ts directly. Env-flag switchable
+ * (AGENTSTUDIO_CLIENT_MODE) so the whole pipeline is testable without live
+ * credentials.
  *
  * Async because it lazily dynamic-imports the live/mock implementation so
  * `ws` / live-only code paths aren't pulled into environments that only
- * ever run in mock mode. Its one caller (worker/submitExtractionJob.ts) is
+ * ever run in mock mode. Its one caller (src/server/extractionRunner.ts) is
  * already async, so this doesn't ripple further.
  */
 export async function getAgentStudioClient(): Promise<AgentStudioClient> {

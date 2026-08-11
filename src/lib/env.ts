@@ -20,13 +20,12 @@ const envSchema = z.object({
   LOCAL_STORAGE_DIR: z.string().default("./.data/uploads"),
 
   // Storage adapter switch (src/lib/storage/index.ts). "local" (default)
-  // needs web + worker to share a filesystem -- fine for a single host or
-  // docker-compose.yml's shared volume, but breaks once they're split
-  // across hosts (e.g. Vercel + a separate worker host), which is when
-  // "vercel-blob" is needed instead. BLOB_READ_WRITE_TOKEN is auto-injected
-  // on Vercel itself once a Blob store is connected to the project; a
-  // separate worker host needs it set explicitly (copy from the Vercel
-  // Blob dashboard).
+  // needs a persistent shared filesystem -- fine for a single host or
+  // docker-compose.yml's shared volume, but breaks on Vercel, where
+  // serverless function instances don't share a persistent local disk
+  // across invocations, which is when "vercel-blob" is needed instead.
+  // BLOB_READ_WRITE_TOKEN is auto-injected on Vercel itself once a Blob
+  // store is connected to the project.
   STORAGE_DRIVER: z.enum(["local", "vercel-blob"]).default("local"),
   BLOB_READ_WRITE_TOKEN: z.string().default(""),
 });
@@ -37,7 +36,7 @@ let cached: Env | null = null;
 
 /**
  * Lazily validated process.env. Call at the point of use (route handler /
- * worker entrypoint), not at module top-level, so it doesn't blow up
+ * extractionRunner), not at module top-level, so it doesn't blow up
  * `next build`'s static analysis pass or unrelated unit tests.
  */
 export function getEnv(): Env {

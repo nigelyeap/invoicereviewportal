@@ -207,10 +207,11 @@ export interface AgentStudioClient {
   extractInvoice(params: {
     /**
      * Raw file bytes, already fetched from the storage adapter by the
-     * caller (worker/submitExtractionJob.ts) -- deliberately not a local
+     * caller (src/server/extractionRunner.ts) -- deliberately not a local
      * disk path, since the storage adapter may be remote (e.g. Vercel
-     * Blob) and the worker isn't guaranteed to run on the same host/disk
-     * as whatever wrote the file.
+     * Blob), which is required on Vercel: a serverless function instance
+     * isn't guaranteed to have the same local disk that the upload request
+     * wrote the file to.
      */
     fileBuffer: Buffer;
     fileName: string;

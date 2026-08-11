@@ -5,10 +5,13 @@ import { getEnv } from "@/lib/env";
 import type { StorageAdapter } from "./types";
 
 /**
- * Vercel Blob storage adapter -- used when the web app and the worker run
- * on separate hosts (e.g. web on Vercel, worker on Railway/Fly) and can no
- * longer share a local disk. Both sides talk to Blob over plain HTTPS, so
- * it works identically regardless of which host called it.
+ * Vercel Blob storage adapter -- used on Vercel, where serverless function
+ * instances don't share a persistent local disk across invocations (the
+ * instance that handles an upload request isn't guaranteed to be the same
+ * one whose `after()` continuation later reads the file back, nor the one
+ * that serves it later via /api/documents/[id]/file). Talks to Blob over
+ * plain HTTPS, so it works identically regardless of which instance calls
+ * it.
  *
  * PRIVACY NOTE: Vercel Blob objects are fetchable by anyone who has the
  * exact URL (there's no private/signed-URL mode at the base tier). This app
@@ -20,9 +23,8 @@ import type { StorageAdapter } from "./types";
  * backed by S3/R2 with presigned GETs instead -- same StorageAdapter shape.
  */
 export function createVercelBlobStorageAdapter(): StorageAdapter {
-  // On Vercel itself this is auto-injected once a Blob store is connected
-  // to the project; on a separate worker host (Railway etc.) it must be set
-  // explicitly as an env var, copied from the Vercel Blob dashboard.
+  // Auto-injected by Vercel itself once a Blob store is connected to the
+  // project.
   const token = getEnv().BLOB_READ_WRITE_TOKEN || undefined;
 
   async function saveUploadedFile(params: { originalFilename: string; buffer: Buffer }) {

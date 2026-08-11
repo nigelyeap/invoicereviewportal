@@ -5,11 +5,11 @@ import { getEnv } from "@/lib/env";
 import type { StorageAdapter } from "./types";
 
 /**
- * Local-disk storage adapter. Only valid when web + worker share a
- * filesystem (single host, or the docker-compose.yml `uploads_data` volume
- * mounted into both containers) -- see vercelBlobStorage.ts for the
- * multi-host-safe alternative (needed once web/worker are split across
- * Vercel + a separate worker host).
+ * Local-disk storage adapter. Only valid when reads and writes land on the
+ * same persistent filesystem (single host, or the docker-compose.yml
+ * `uploads_data` volume) -- see vercelBlobStorage.ts for the Vercel-safe
+ * alternative, needed because serverless function instances there don't
+ * share a persistent local disk across invocations.
  */
 async function baseDir(): Promise<string> {
   // turbopackIgnore: LOCAL_STORAGE_DIR is a runtime env var, not a static
