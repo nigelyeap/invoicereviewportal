@@ -139,35 +139,49 @@ function FullReport({ fields, agentNotes }: { fields: ExtractedFieldRow[]; agent
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               {GROUP_LABEL[group]}
             </h3>
-            <div className="flex flex-col divide-y divide-border rounded-lg border">
-              {groupFields.map((f) => (
-                <div key={f.id} className="flex flex-col gap-1 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">
-                      {f.overrideLabel ?? f.label}
-                      {f.lineItemIndex !== null && (
-                        <span className="ml-1 font-normal text-muted-foreground">(item {f.lineItemIndex + 1})</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {f.confidenceScore === null ? "confidence n/a" : `${Math.round(f.confidenceScore * 100)}% confidence`}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground">{f.currentValue || <em>(no value)</em>}</p>
-                  <div className="flex items-start gap-1.5 text-xs">
-                    {f.validationStatus === "INVALID" ? (
-                      <XCircle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
-                    ) : f.validationStatus === "WARNING" ? (
-                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-                    ) : f.validationStatus === "VALID" ? (
-                      <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                    ) : null}
-                    <span>
-                      {f.validationMessage ?? f.confidenceRemark ?? "No additional analysis for this field."}
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-hidden rounded-lg border">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">Field</th>
+                    <th className="px-3 py-2 font-medium">Value</th>
+                    <th className="px-3 py-2 font-medium whitespace-nowrap">Confidence</th>
+                    <th className="px-3 py-2 font-medium">Validation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {groupFields.map((f) => (
+                    <tr key={f.id} className="align-top">
+                      <td className="px-3 py-2 font-medium whitespace-nowrap">
+                        {f.overrideLabel ?? f.label}
+                        {f.lineItemIndex !== null && (
+                          <span className="ml-1 font-normal text-muted-foreground">(item {f.lineItemIndex + 1})</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {f.currentValue || <em>(no value)</em>}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                        {f.confidenceScore === null ? "n/a" : `${Math.round(f.confidenceScore * 100)}%`}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-start gap-1.5">
+                          {f.validationStatus === "INVALID" ? (
+                            <XCircle className="mt-0.5 size-3.5 shrink-0 text-destructive" />
+                          ) : f.validationStatus === "WARNING" ? (
+                            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+                          ) : f.validationStatus === "VALID" ? (
+                            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                          ) : null}
+                          <span>
+                            {f.validationMessage ?? f.confidenceRemark ?? "No additional analysis for this field."}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         );
@@ -266,7 +280,7 @@ export function ValidationSummary({
               the remainder; `min-h-0` on that body div lets it actually
               shrink to that track instead of expanding to its content.
             */}
-            <DialogContent className="grid max-h-[85vh] max-w-2xl grid-rows-[auto_1fr] overflow-hidden p-0">
+            <DialogContent className="grid max-h-[85vh] max-w-3xl grid-rows-[auto_1fr] overflow-hidden p-0">
               <DialogHeader className="border-b px-6 pt-6 pb-4">
                 <DialogTitle>Validation & analysis -- full report</DialogTitle>
                 <DialogDescription>
