@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { getStorageAdapter } from "@/lib/storage";
 import { buildExtractedFieldRows, type CatalogEntryLike, type TemplateItemLike } from "@/lib/agentstudio/mapper";
+import { extractAgentNotes, type AgentNotes } from "@/lib/agentstudio/agentNotes";
 import type { OcrDocument } from "@/lib/agentstudio/types";
 import { getEnv } from "@/lib/env";
 
@@ -152,6 +153,21 @@ export async function markSucceeded(
   ]);
 
   return getJobWithDetails(jobId);
+}
+
+/**
+ * The agent's own document-level notes (quality flags, low-confidence field
+ * explanations, stamps/handwriting, raw per-page OCR text) -- see
+ * agentNotes.ts. Read straight off the stored rawResponse.parseContent
+ * rather than threading a new column through markSucceeded, since this is
+ * the same JSON that's already persisted there. Returns null if the job
+ * hasn't succeeded yet / has no stored parseContent.
+ */
+export async function getAgentNotes(jobId: string): Promise<AgentNotes | null> {
+  const job = await prisma.extractionJob.findUnique({ where: { id: jobId }, select: { rawResponse: true } });
+  const stored = job?.rawResponse as { parseContent?: OcrDocument } | null | undefined;
+  if (!stored?.parseContent) return null;
+  return extractAgentNotes(stored.parseContent);
 }
 
 export async function markFailed(jobId: string, errorMessage: string) {

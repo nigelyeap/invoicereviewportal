@@ -12,6 +12,7 @@ import { Loader2, AlertCircle, Download, FileText, LayoutTemplate } from "lucide
 import { FieldPanel, type ExtractedFieldRow } from "@/components/review/FieldPanel";
 import { ValidationSummary } from "@/components/review/ValidationSummary";
 import type { HighlightTarget } from "@/components/review/DocumentViewer";
+import type { AgentNotes } from "@/lib/agentstudio/agentNotes";
 import { cn } from "@/lib/utils";
 
 // pdfjs touches browser-only globals (DOMMatrix etc) -- never render this
@@ -41,7 +42,7 @@ interface TemplateSummary {
   name: string;
 }
 
-async function fetchJob(jobId: string): Promise<{ job: JobDetail }> {
+async function fetchJob(jobId: string): Promise<{ job: JobDetail; agentNotes: AgentNotes | null }> {
   const res = await fetch(`/api/jobs/${jobId}`);
   if (!res.ok) throw new Error(`Failed to load job (${res.status})`);
   return res.json();
@@ -212,7 +213,11 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
         </Alert>
       )}
 
-      <ValidationSummary fields={job.extractedFields} onSelectField={selectField} />
+      <ValidationSummary
+        fields={job.extractedFields}
+        agentNotes={jobQuery.data!.agentNotes}
+        onSelectField={selectField}
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DocumentViewer documentId={job.document.id} mimeType={job.document.mimeType} highlight={highlight} />

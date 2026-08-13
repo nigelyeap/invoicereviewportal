@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, FileText, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, ScrollText, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import type { AgentNotes } from "@/lib/agentstudio/agentNotes";
 import type { ExtractedFieldRow } from "./FieldPanel";
 
 const GROUP_LABEL: Record<ExtractedFieldRow["fieldGroup"], string> = {
@@ -19,17 +20,117 @@ const GROUP_LABEL: Record<ExtractedFieldRow["fieldGroup"], string> = {
   TOTALS: "Totals",
 };
 
+const SEVERITY_CLASS: Record<string, string> = {
+  high: "text-destructive",
+  medium: "text-amber-600",
+  low: "text-muted-foreground",
+};
+
+/**
+ * AgentStudio's own document-level remarks -- quality_flags,
+ * critical_low_confidence_fields, stamps_and_handwriting, and the raw
+ * per-page OCR text (raw_text_by_page). This is genuinely agent-authored
+ * prose (see agentNotes.ts), distinct from the per-field write-up below
+ * (FullReport), which the portal itself computes (confidence.ts /
+ * validationRules.ts). Shown first so it reads as "what the agent actually
+ * said" before "what the portal concluded about each field".
+ */
+function AgentNotesReport({ agentNotes }: { agentNotes: AgentNotes }) {
+  const { qualityFlags, criticalLowConfidenceFields, stampsAndHandwriting, rawTextByPage, hasFlaggedNotes } =
+    agentNotes;
+
+  if (!hasFlaggedNotes && rawTextByPage.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        <ScrollText className="size-3.5" />
+        AgentStudio&apos;s own notes
+      </h3>
+
+      {hasFlaggedNotes ? (
+        <div className="flex flex-col divide-y divide-border rounded-lg border">
+          {qualityFlags.map((f, i) => (
+            <div key={`qf-${i}`} className="flex flex-col gap-1 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium capitalize">{f.issue.replace(/_/g, " ")}</span>
+                <span className={cn("shrink-0 text-xs font-medium capitalize", SEVERITY_CLASS[f.severity] ?? "")}>
+                  {f.severity}
+                  {f.page !== null && ` -- page ${f.page}`}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">{f.description}</p>
+            </div>
+          ))}
+          {criticalLowConfidenceFields.map((f, i) => (
+            <div key={`clc-${i}`} className="flex flex-col gap-1 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium">{f.fieldPath}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {f.confidence === null ? "confidence n/a" : `${Math.round(f.confidence * 100)}% confidence`}
+                </span>
+              </div>
+              {f.value !== null && <p className="text-xs text-muted-foreground">Value: {f.value}</p>}
+              <p className="text-xs text-muted-foreground">{f.reason}</p>
+            </div>
+          ))}
+          {stampsAndHandwriting.map((s, i) => (
+            <div key={`sh-${i}`} className="flex flex-col gap-1 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium capitalize">{s.type.replace(/_/g, " ")}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{s.page !== null && `page ${s.page}`}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {s.overlapsPrintedText ? "Overlaps printed text. " : ""}
+                {s.affectedFields.length > 0 && `Affects: ${s.affectedFields.join(", ")}.`}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          AgentStudio didn&apos;t flag any quality issues or low-confidence fields for this document.
+        </p>
+      )}
+
+      {rawTextByPage.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {rawTextByPage.map((p) => (
+            <details key={p.page} className="rounded-lg border px-3 py-2">
+              <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                Raw OCR text -- page {p.page}
+                {p.confidence !== null && ` (${Math.round(p.confidence * 100)}% confidence)`}
+              </summary>
+              <pre className="mt-2 max-h-64 overflow-auto rounded bg-muted/50 p-2 text-xs whitespace-pre-wrap">
+                {p.rawText}
+              </pre>
+            </details>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Every field's validation/confidence writeup, laid out as one continuous
  * readable report rather than the trimmed "issues only" list in the summary
  * card -- this is the "full text" behind the "Validation & analysis" line,
- * opened via the "View full report" button.
+ * opened via the "View full report" button. Prefixed with AgentNotesReport
+ * (the agent's own raw remarks), when present, above this portal-computed
+ * per-field breakdown.
  */
-function FullReport({ fields }: { fields: ExtractedFieldRow[] }) {
+function FullReport({ fields, agentNotes }: { fields: ExtractedFieldRow[]; agentNotes: AgentNotes | null }) {
   const groups: ExtractedFieldRow["fieldGroup"][] = ["HEADER", "LINE_ITEM", "TOTALS"];
 
   return (
     <div className="flex flex-col gap-5 text-sm">
+      {agentNotes && <AgentNotesReport agentNotes={agentNotes} />}
+      {agentNotes && (agentNotes.hasFlaggedNotes || agentNotes.rawTextByPage.length > 0) && (
+        <h3 className="-mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          Per-field breakdown
+        </h3>
+      )}
       {groups.map((group) => {
         const groupFields = fields.filter((f) => f.fieldGroup === group);
         if (groupFields.length === 0) return null;
@@ -88,9 +189,11 @@ function FullReport({ fields }: { fields: ExtractedFieldRow[] }) {
  */
 export function ValidationSummary({
   fields,
+  agentNotes,
   onSelectField,
 }: {
   fields: ExtractedFieldRow[];
+  agentNotes: AgentNotes | null;
   onSelectField: (field: ExtractedFieldRow) => void;
 }) {
   if (fields.length === 0) return null;
@@ -151,15 +254,28 @@ export function ValidationSummary({
                 </Button>
               }
             />
-            <DialogContent className="max-h-[85vh] max-w-2xl overflow-hidden p-0">
+            {/*
+              DialogContent's base styling is `grid` with no explicit row
+              tracks (see dialog.tsx) -- fine for a dialog sized to its
+              content, but a grid item's default min-height is `auto`, so it
+              won't shrink to fit a track and `overflow-y-auto` on the body
+              below never actually engages: content past max-h-[85vh] was
+              silently clipped by this element's own `overflow-hidden` and
+              unreachable by any scroll. `grid-rows-[auto_1fr]` gives the
+              header row its natural height and constrains the body row to
+              the remainder; `min-h-0` on that body div lets it actually
+              shrink to that track instead of expanding to its content.
+            */}
+            <DialogContent className="grid max-h-[85vh] max-w-2xl grid-rows-[auto_1fr] overflow-hidden p-0">
               <DialogHeader className="border-b px-6 pt-6 pb-4">
                 <DialogTitle>Validation & analysis -- full report</DialogTitle>
                 <DialogDescription>
-                  Confidence and validation notes for every extracted field, not just the ones with issues.
+                  AgentStudio&apos;s own notes on the document, plus confidence and validation for every extracted
+                  field, not just the ones with issues.
                 </DialogDescription>
               </DialogHeader>
-              <div className="overflow-y-auto px-6 pb-6">
-                <FullReport fields={fields} />
+              <div className="min-h-0 overflow-y-auto px-6 pb-6">
+                <FullReport fields={fields} agentNotes={agentNotes} />
               </div>
             </DialogContent>
           </Dialog>

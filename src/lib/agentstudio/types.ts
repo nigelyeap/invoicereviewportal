@@ -146,10 +146,39 @@ export interface OcrDocument {
     checked_and_approved_by?: OcrLeaf;
     signatures_detected?: unknown[];
   };
-  stamps_and_handwriting?: unknown[];
+  stamps_and_handwriting?: Array<{
+    type?: string | null;
+    text?: unknown;
+    page?: number | null;
+    bounding_box?: OcrBoundingBox | null;
+    overlaps_printed_text?: boolean | null;
+    affected_fields?: string[];
+    confidence?: number | null;
+  }>;
   raw_text_by_page?: Array<{ page: number; raw_text: string; page_ocr_confidence?: number }>;
-  quality_flags?: unknown[];
-  critical_low_confidence_fields?: unknown[];
+  /**
+   * AgentStudio's own free-text quality notes about the document itself
+   * (blur, skew, stamp overlap, handwriting, etc) -- genuinely agent-authored
+   * prose, not something the portal computes. See agentNotes.ts, which is
+   * what actually reads this (parser.ts/mapper.ts intentionally don't --
+   * these aren't per-field extraction data, they're document-level remarks).
+   */
+  quality_flags?: Array<{
+    page?: number | null;
+    issue?: string | null;
+    severity?: string | null;
+    description?: string | null;
+  }>;
+  /**
+   * AgentStudio's own explanation for specific fields it was unsure about --
+   * also agent-authored prose (the `reason` string), read by agentNotes.ts.
+   */
+  critical_low_confidence_fields?: Array<{
+    field_path?: string | null;
+    value?: unknown;
+    confidence?: number | null;
+    reason?: string | null;
+  }>;
 }
 
 /** A field as extracted from the OCR-mode JSON, before catalog/template mapping. */
