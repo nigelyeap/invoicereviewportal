@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, ArrowDown, ArrowUp, Loader2, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertCircle, ArrowDown, ArrowUp, Loader2, Plus, Trash2 } from "lucide-react";
 
 interface CatalogEntry {
   fieldKey: string;
@@ -58,6 +59,7 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ templ
   const { templateId } = use(params);
   const isNew = templateId === "new";
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const catalogQuery = useQuery({ queryKey: ["field-catalog"], queryFn: fetchCatalog });
   const templateQuery = useQuery({
@@ -118,6 +120,33 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ templ
       items: f.items.map((i) => (i.fieldKey === fieldKey ? { ...i, ...patch } : i)),
     }));
   }
+
+  // Custom fields: a reviewer-typed field not produced by AgentStudio at
+  // all (Header/Totals only, always plain text -- see field-catalog POST
+  // route). Creates the catalog entry, then immediately adds it to this
+  // template's item list like any other field.
+  const [newFieldLabel, setNewFieldLabel] = useState("");
+  const [newFieldGroup, setNewFieldGroup] = useState<"HEADER" | "TOTALS">("HEADER");
+
+  const createFieldMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/field-catalog", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label: newFieldLabel.trim(), fieldGroup: newFieldGroup }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(typeof body?.error === "string" ? body.error : `Failed to add field (${res.status})`);
+      }
+      return res.json() as Promise<{ entry: CatalogEntry }>;
+    },
+    onSuccess: async ({ entry }) => {
+      await queryClient.invalidateQueries({ queryKey: ["field-catalog"] });
+      addField(entry.fieldKey);
+      setNewFieldLabel("");
+    },
+  });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -302,6 +331,51 @@ export default function TemplateEditorPage({ params }: { params: Promise<{ templ
                   </select>
                 </div>
               )}
+
+              <div className="flex flex-col gap-2 border-t pt-4">
+                <Label htmlFor="new-field-label">Add a custom field</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="new-field-label"
+                    placeholder="Field name, e.g. Cost Center"
+                    value={newFieldLabel}
+                    onChange={(e) => setNewFieldLabel(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Select
+                    value={newFieldGroup}
+                    onValueChange={(value) => setNewFieldGroup(value as "HEADER" | "TOTALS")}
+                  >
+                    <SelectTrigger className="w-28" aria-label="Group for the new field">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HEADER">Header</SelectItem>
+                      <SelectItem value="TOTALS">Totals</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!newFieldLabel.trim() || createFieldMutation.isPending}
+                    onClick={() => createFieldMutation.mutate()}
+                  >
+                    {createFieldMutation.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Plus className="size-4" />
+                    )}
+                    Add
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Creates a new plain-text field and adds it here. It won&apos;t be filled in by extraction --
+                  reviewers type the value in on page 3.
+                </p>
+                {createFieldMutation.isError && (
+                  <p className="text-xs text-destructive">{(createFieldMutation.error as Error).message}</p>
+                )}
+              </div>
             </CardContent>
           </Card>
 

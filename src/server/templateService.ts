@@ -15,6 +15,55 @@ export async function listCatalogEntries() {
   });
 }
 
+function slugifyLabel(label: string): string {
+  const slug = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return slug || "field";
+}
+
+/**
+ * Ad-hoc user-defined fields (see AskUserQuestion decision: Header/Totals
+ * only, always plain-text). These never appear in AgentStudio's own OCR
+ * output, so buildExtractedFieldRows' existing "catalog entry with no
+ * matching parsed field" path (mapper.ts line ~128-131) already renders them
+ * as an empty, editable row -- no parser/mapper changes needed, this just
+ * adds the catalog row a template can reference.
+ *
+ * fieldKey is slugified from the label and namespaced under "custom." so it
+ * can never collide with a canonical AgentStudio key (those are bare
+ * snake_case, e.g. "invoice_number", or "totals.<x>"/"line_item.<x>" for the
+ * two namespaces AgentStudio itself uses) even if the flow later starts
+ * emitting a field with the same plain-English name. Collisions between two
+ * custom fields with the same/similar label are resolved with a numeric
+ * suffix.
+ */
+export async function createCatalogEntry(params: { label: string; fieldGroup: "HEADER" | "TOTALS" }) {
+  const label = params.label.trim();
+  const base = `custom.${slugifyLabel(label)}`;
+
+  let fieldKey = base;
+  let suffix = 2;
+  // Small, bounded, human-driven table -- a loop here is simpler than a
+  // clever upsert-with-retry and this never runs at request volume.
+  while (await prisma.fieldCatalogEntry.findUnique({ where: { fieldKey } })) {
+    fieldKey = `${base}_${suffix}`;
+    suffix += 1;
+  }
+
+  return prisma.fieldCatalogEntry.create({
+    data: {
+      fieldKey,
+      label,
+      dataType: "STRING",
+      fieldGroup: params.fieldGroup,
+      isLineItemField: false,
+    },
+  });
+}
+
 export async function listTemplates() {
   return prisma.fieldTemplate.findMany({
     orderBy: { createdAt: "asc" },

@@ -50,8 +50,34 @@ function useZoom() {
   const [zoom, setZoom] = useState(1);
   const zoomIn = useCallback(() => setZoom((z) => clampZoom(z + ZOOM_STEP)), []);
   const zoomOut = useCallback(() => setZoom((z) => clampZoom(z - ZOOM_STEP)), []);
+  const zoomBy = useCallback((delta: number) => setZoom((z) => clampZoom(z + delta)), []);
   const resetZoom = useCallback(() => setZoom(1), []);
-  return { zoom, zoomIn, zoomOut, resetZoom, canZoomIn: zoom < ZOOM_MAX, canZoomOut: zoom > ZOOM_MIN };
+  return { zoom, zoomIn, zoomOut, zoomBy, resetZoom, canZoomIn: zoom < ZOOM_MAX, canZoomOut: zoom > ZOOM_MIN };
+}
+
+/** Wheel-to-zoom, scoped to the document panel only. Trackpad pinch and
+ *  ctrl/cmd+scroll both arrive as native `wheel` events with `ctrlKey: true`
+ *  (that's how Chrome reports pinch gestures -- there's no separate gesture
+ *  event in the wheel spec) which is otherwise the browser's own
+ *  page-zoom trigger. Without this hook that gesture zooms the *whole page*
+ *  the instant the cursor happens to be over the document, which is the
+ *  "unintuitive" behavior being fixed here: intercept it while the pointer
+ *  is over this panel and zoom just the document instead. Must attach a
+ *  real (non-passive) DOM listener via ref -- React's JSX `onWheel` prop is
+ *  registered passive by default, so `preventDefault()` inside it is
+ *  silently ignored and the page still zooms underneath. */
+function useWheelZoom(containerRef: React.RefObject<HTMLDivElement | null>, zoomBy: (delta: number) => void) {
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    function handleWheel(event: WheelEvent) {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      zoomBy(-event.deltaY * 0.002);
+    }
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [containerRef, zoomBy]);
 }
 
 function ZoomToolbar({
@@ -137,9 +163,46 @@ export function DocumentViewer({
   return <PdfViewer fileUrl={fileUrl} highlight={highlight} />;
 }
 
+/**
+ * Both viewers render at a fixed pixel size (RENDER_SCALE for PDFs, the
+ * image's natural laid-out size) inside a `max-h-[...] overflow-auto`
+ * panel that's frequently narrower/shorter than the content -- a highlight
+ * box positioned in the right or lower portion of the page is computed
+ * correctly but can end up scrolled out of the visible area with nothing
+ * telling the browser to bring it into view. This hook scrolls the
+ * highlighted element into the center of its nearest scrollable ancestor
+ * whenever a *new* highlight target's box becomes available, keyed off the
+ * box's own page/position (not object identity, since the box is a fresh
+ * object on every recompute even when nothing meaningful changed) so it
+ * doesn't re-scroll on unrelated re-renders.
+ */
+function useScrollHighlightIntoView(box: { pageNumber: number; x: number; y: number } | null) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const lastKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!box) {
+      lastKeyRef.current = null;
+      return;
+    }
+    const key = `${box.pageNumber}:${box.x}:${box.y}`;
+    if (lastKeyRef.current === key) return;
+    lastKeyRef.current = key;
+    // rAF so this runs after the just-rendered box has actually painted.
+    const id = requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [box]);
+
+  return ref;
+}
+
 function ImageViewer({ fileUrl, highlight }: { fileUrl: string; highlight: HighlightTarget | null }) {
   const zoomState = useZoom();
-  const { zoom } = zoomState;
+  const { zoom, zoomBy } = zoomState;
+  const containerRef = useRef<HTMLDivElement>(null);
+  useWheelZoom(containerRef, zoomBy);
   const imgRef = useRef<HTMLImageElement>(null);
   // Rendered (CSS pixel, post max-w-full scaledown) size of the <img> --
   // sourceBbox's 0-1000 normalization is against the full page image, but
@@ -168,8 +231,13 @@ function ImageViewer({ fileUrl, highlight }: { fileUrl: string; highlight: Highl
   // so "has source text but no bbox" is the only not-available case here.
   const showNoMatchNotice = !!highlight?.sourceText?.trim() && !highlight?.sourceBbox && !!imgSize;
 
+  const highlightRef = useScrollHighlightIntoView(highlightBox);
+
   return (
-    <div className="flex max-h-[calc(100vh-12rem)] flex-col gap-3 overflow-auto rounded-lg border bg-muted/30 p-4">
+    <div
+      ref={containerRef}
+      className="flex max-h-[calc(100vh-12rem)] flex-col gap-3 overflow-auto rounded-lg border bg-muted/30 p-4"
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           {showNoMatchNotice && (
@@ -194,6 +262,7 @@ function ImageViewer({ fileUrl, highlight }: { fileUrl: string; highlight: Highl
         />
         {highlightBox && (
           <div
+            ref={highlightRef}
             className="pointer-events-none absolute rounded-sm bg-yellow-300/50 ring-2 ring-yellow-500"
             style={{
               left: highlightBox.x,
@@ -210,7 +279,9 @@ function ImageViewer({ fileUrl, highlight }: { fileUrl: string; highlight: Highl
 
 function PdfViewer({ fileUrl, highlight }: { fileUrl: string; highlight: HighlightTarget | null }) {
   const zoomState = useZoom();
-  const { zoom } = zoomState;
+  const { zoom, zoomBy } = zoomState;
+  const containerRef = useRef<HTMLDivElement>(null);
+  useWheelZoom(containerRef, zoomBy);
   const [numPages, setNumPages] = useState(0);
   const [pageGeometry, setPageGeometry] = useState<Record<number, PageGeometry>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -288,12 +359,17 @@ function PdfViewer({ fileUrl, highlight }: { fileUrl: string; highlight: Highlig
   // highlight at all (which reads as "did my click even register?").
   const showNoMatchNotice = !!highlight?.sourceText?.trim() && searchReady && !highlightBox;
 
+  const highlightRef = useScrollHighlightIntoView(highlightBox);
+
   if (loadError) {
     return <p className="text-sm text-destructive">{loadError}</p>;
   }
 
   return (
-    <div className="flex max-h-[calc(100vh-12rem)] flex-col gap-3 overflow-auto rounded-lg border bg-muted/30 p-4">
+    <div
+      ref={containerRef}
+      className="flex max-h-[calc(100vh-12rem)] flex-col gap-3 overflow-auto rounded-lg border bg-muted/30 p-4"
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
           {showNoMatchNotice && (
@@ -345,6 +421,7 @@ function PdfViewer({ fileUrl, highlight }: { fileUrl: string; highlight: Highlig
                 />
                 {highlightBox && highlightBox.pageNumber === pageNumber && (
                   <div
+                    ref={highlightRef}
                     className="pointer-events-none absolute rounded-sm bg-yellow-300/50 ring-2 ring-yellow-500"
                     style={{
                       left: highlightBox.x,
