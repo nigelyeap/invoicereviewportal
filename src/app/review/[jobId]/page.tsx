@@ -6,8 +6,11 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { buttonVariants } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertCircle, Download, FileText } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, AlertCircle, Download, FileText, LayoutTemplate } from "lucide-react";
 import { FieldPanel, type ExtractedFieldRow } from "@/components/review/FieldPanel";
+import { ValidationSummary } from "@/components/review/ValidationSummary";
 import type { HighlightTarget } from "@/components/review/DocumentViewer";
 import { cn } from "@/lib/utils";
 
@@ -132,6 +135,9 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
     );
   }
 
+  const selectedFieldCount = job.extractedFields.filter((f) => f.isSelected).length;
+  const totalFieldCount = job.extractedFields.length;
+
   const selectedField = job.extractedFields.find((f) => f.id === selectedFieldId) ?? null;
   const highlight: HighlightTarget | null = selectedField
     ? {
@@ -140,6 +146,7 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
         sourceBbox: selectedField.sourceBbox,
       }
     : null;
+  const selectField = (field: ExtractedFieldRow) => setSelectedFieldId(field.id);
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-8">
@@ -156,23 +163,37 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <label htmlFor="template-picker" className="text-sm text-muted-foreground">
-            Template
-          </label>
-          <select
-            id="template-picker"
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-            value={job.appliedFieldTemplateId ?? ""}
-            disabled={applyTemplate.isPending}
-            onChange={(e) => applyTemplate.mutate(e.target.value || null)}
-          >
-            <option value="">None (all fields)</option>
-            {templatesQuery.data?.templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 py-1.5 pr-2.5 pl-3">
+            <LayoutTemplate className="size-4 shrink-0 text-primary" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+                Field template
+              </span>
+              <Select
+                value={job.appliedFieldTemplateId}
+                onValueChange={(value: string | null) => applyTemplate.mutate(value)}
+              >
+                <SelectTrigger
+                  disabled={applyTemplate.isPending}
+                  aria-label="Choose which fields to show for this document"
+                  className="h-5 border-none bg-transparent p-0 text-sm font-semibold shadow-none focus-visible:ring-0"
+                >
+                  <SelectValue placeholder="All fields (no template)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={null}>All fields (no template)</SelectItem>
+                  {templatesQuery.data?.templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Badge variant="secondary" className="ml-1 shrink-0">
+              {selectedFieldCount} of {totalFieldCount} fields shown
+            </Badge>
+          </div>
           <Link
             href={`/api/jobs/${jobId}/export`}
             className={cn(buttonVariants({ variant: "default", size: "sm" }), "gap-1.5")}
@@ -191,6 +212,8 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
         </Alert>
       )}
 
+      <ValidationSummary fields={job.extractedFields} onSelectField={selectField} />
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DocumentViewer documentId={job.document.id} mimeType={job.document.mimeType} highlight={highlight} />
 
@@ -198,7 +221,7 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
           <FieldPanel
             fields={job.extractedFields}
             selectedFieldId={selectedFieldId}
-            onSelectField={(field) => setSelectedFieldId(field.id)}
+            onSelectField={selectField}
             onValueChange={(fieldId, newValue) =>
               patchField.mutate({ fieldId, body: { currentValue: newValue || null } })
             }

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import type { DocumentProps, TextItem, TextMarkedContent } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
-import { Loader2 } from "lucide-react";
+import { Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { buildPageLines } from "@/lib/highlighting/textLayerIndex";
 import type { PageTextLine, TextItemLike, ViewportLike } from "@/lib/highlighting/textLayerIndex";
 import { boxFromNormalizedBbox, findBestTextMatch } from "@/lib/highlighting/fuzzyMatch";
@@ -24,8 +25,62 @@ import { boxFromNormalizedBbox, findBestTextMatch } from "@/lib/highlighting/fuz
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 /** Fixed render scale so the same-scale text-line index (built from the same
- *  loaded pdf proxy) lines up pixel-for-pixel with the rendered <Page>. */
+ *  loaded pdf proxy) lines up pixel-for-pixel with the rendered <Page>. This
+ *  is the PDF's *base* render resolution, independent of user zoom (see
+ *  useZoom below) -- zoom is applied as a CSS transform on top of content
+ *  rendered at this fixed scale, not by re-rendering pdf.js at a different
+ *  scale, so the highlight-box math (which is keyed to RENDER_SCALE) never
+ *  needs to know about zoom at all. */
 const RENDER_SCALE = 1.5;
+
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.25;
+
+function clampZoom(z: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+}
+
+/** Shared zoom-level state for both the PDF and image viewers -- applied as
+ *  a `transform: scale()` on the rendered content, never by re-rendering at
+ *  a different resolution, so nothing downstream (text-layer index, bbox
+ *  overlay positioning, image ResizeObserver measurements, all of which read
+ *  pre-transform layout pixels) needs to change to support it. */
+function useZoom() {
+  const [zoom, setZoom] = useState(1);
+  const zoomIn = useCallback(() => setZoom((z) => clampZoom(z + ZOOM_STEP)), []);
+  const zoomOut = useCallback(() => setZoom((z) => clampZoom(z - ZOOM_STEP)), []);
+  const resetZoom = useCallback(() => setZoom(1), []);
+  return { zoom, zoomIn, zoomOut, resetZoom, canZoomIn: zoom < ZOOM_MAX, canZoomOut: zoom > ZOOM_MIN };
+}
+
+function ZoomToolbar({
+  zoom,
+  zoomIn,
+  zoomOut,
+  resetZoom,
+  canZoomIn,
+  canZoomOut,
+}: ReturnType<typeof useZoom>) {
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button type="button" variant="outline" size="icon-sm" onClick={zoomOut} disabled={!canZoomOut} aria-label="Zoom out">
+        <ZoomOut />
+      </Button>
+      <button
+        type="button"
+        onClick={resetZoom}
+        aria-label="Reset zoom to 100%"
+        className="min-w-11 rounded-md px-1 text-center text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        {Math.round(zoom * 100)}%
+      </button>
+      <Button type="button" variant="outline" size="icon-sm" onClick={zoomIn} disabled={!canZoomIn} aria-label="Zoom in">
+        <ZoomIn />
+      </Button>
+    </div>
+  );
+}
 
 export interface HighlightTarget {
   sourceText: string | null;
@@ -83,6 +138,8 @@ export function DocumentViewer({
 }
 
 function ImageViewer({ fileUrl, highlight }: { fileUrl: string; highlight: HighlightTarget | null }) {
+  const zoomState = useZoom();
+  const { zoom } = zoomState;
   const imgRef = useRef<HTMLImageElement>(null);
   // Rendered (CSS pixel, post max-w-full scaledown) size of the <img> --
   // sourceBbox's 0-1000 normalization is against the full page image, but
@@ -112,13 +169,18 @@ function ImageViewer({ fileUrl, highlight }: { fileUrl: string; highlight: Highl
   const showNoMatchNotice = !!highlight?.sourceText?.trim() && !highlight?.sourceBbox && !!imgSize;
 
   return (
-    <div className="flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-auto rounded-lg border bg-muted/30 p-4">
-      {showNoMatchNotice && (
-        <p className="rounded-md border border-dashed border-muted-foreground/40 bg-background px-3 py-2 text-sm text-muted-foreground">
-          Approximate location not available for this field -- AgentStudio didn&apos;t report a bounding box for it.
-        </p>
-      )}
-      <div className="relative mx-auto inline-block">
+    <div className="flex max-h-[calc(100vh-12rem)] flex-col gap-3 overflow-auto rounded-lg border bg-muted/30 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          {showNoMatchNotice && (
+            <p className="rounded-md border border-dashed border-muted-foreground/40 bg-background px-3 py-2 text-sm text-muted-foreground">
+              Approximate location not available for this field -- AgentStudio didn&apos;t report a bounding box for it.
+            </p>
+          )}
+        </div>
+        <ZoomToolbar {...zoomState} />
+      </div>
+      <div className="relative mx-auto inline-block" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imgRef}
@@ -147,6 +209,8 @@ function ImageViewer({ fileUrl, highlight }: { fileUrl: string; highlight: Highl
 }
 
 function PdfViewer({ fileUrl, highlight }: { fileUrl: string; highlight: HighlightTarget | null }) {
+  const zoomState = useZoom();
+  const { zoom } = zoomState;
   const [numPages, setNumPages] = useState(0);
   const [pageGeometry, setPageGeometry] = useState<Record<number, PageGeometry>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -229,61 +293,72 @@ function PdfViewer({ fileUrl, highlight }: { fileUrl: string; highlight: Highlig
   }
 
   return (
-    <div className="flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-auto rounded-lg border bg-muted/30 p-4">
-      {showNoMatchNotice && (
-        <p className="rounded-md border border-dashed border-muted-foreground/40 bg-background px-3 py-2 text-sm text-muted-foreground">
-          Approximate location not available for this field -- its source text couldn&apos;t be confidently matched
-          in the document.
-        </p>
-      )}
-      <Document
-        file={fileUrl}
-        onLoadSuccess={onDocumentLoadSuccess}
-        onLoadError={(err) => setLoadError(err.message)}
-        loading={
-          <div className="flex items-center gap-2 p-8 text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Loading document...
-          </div>
-        }
-      >
-        {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => {
-          const geometry = pageGeometry[pageNumber];
-          return (
-            <div
-              key={pageNumber}
-              className="relative mx-auto shadow-sm"
-              style={geometry ? { width: geometry.width, height: geometry.height } : undefined}
-            >
-              <Page
-                pageNumber={pageNumber}
-                scale={RENDER_SCALE}
-                renderAnnotationLayer={false}
-                onLoadSuccess={(page) => {
-                  const viewport = page.getViewport({ scale: RENDER_SCALE });
-                  setPageViewport(
-                    pageNumber,
-                    { transform: viewport.transform, scale: viewport.scale },
-                    viewport.width,
-                    viewport.height,
-                  );
-                }}
-                onGetTextSuccess={(textContent) => setPageItems(pageNumber, toTextItemLikes(textContent.items))}
-              />
-              {highlightBox && highlightBox.pageNumber === pageNumber && (
-                <div
-                  className="pointer-events-none absolute rounded-sm bg-yellow-300/50 ring-2 ring-yellow-500"
-                  style={{
-                    left: highlightBox.x,
-                    top: highlightBox.y,
-                    width: highlightBox.width,
-                    height: highlightBox.height,
-                  }}
-                />
-              )}
+    <div className="flex max-h-[calc(100vh-12rem)] flex-col gap-3 overflow-auto rounded-lg border bg-muted/30 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          {showNoMatchNotice && (
+            <p className="rounded-md border border-dashed border-muted-foreground/40 bg-background px-3 py-2 text-sm text-muted-foreground">
+              Approximate location not available for this field -- its source text couldn&apos;t be confidently
+              matched in the document.
+            </p>
+          )}
+        </div>
+        <ZoomToolbar {...zoomState} />
+      </div>
+      {/* Zoom is a CSS transform on this wrapper, not a different pdf.js render
+          scale -- RENDER_SCALE below stays fixed so the text-line index and
+          bbox overlay math (both computed in pre-transform pixels) never need
+          to account for the user's zoom level. */}
+      <div style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+        <Document
+          file={fileUrl}
+          onLoadSuccess={onDocumentLoadSuccess}
+          onLoadError={(err) => setLoadError(err.message)}
+          loading={
+            <div className="flex items-center gap-2 p-8 text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading document...
             </div>
-          );
-        })}
-      </Document>
+          }
+        >
+          {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => {
+            const geometry = pageGeometry[pageNumber];
+            return (
+              <div
+                key={pageNumber}
+                className="relative mx-auto shadow-sm"
+                style={geometry ? { width: geometry.width, height: geometry.height } : undefined}
+              >
+                <Page
+                  pageNumber={pageNumber}
+                  scale={RENDER_SCALE}
+                  renderAnnotationLayer={false}
+                  onLoadSuccess={(page) => {
+                    const viewport = page.getViewport({ scale: RENDER_SCALE });
+                    setPageViewport(
+                      pageNumber,
+                      { transform: viewport.transform, scale: viewport.scale },
+                      viewport.width,
+                      viewport.height,
+                    );
+                  }}
+                  onGetTextSuccess={(textContent) => setPageItems(pageNumber, toTextItemLikes(textContent.items))}
+                />
+                {highlightBox && highlightBox.pageNumber === pageNumber && (
+                  <div
+                    className="pointer-events-none absolute rounded-sm bg-yellow-300/50 ring-2 ring-yellow-500"
+                    style={{
+                      left: highlightBox.x,
+                      top: highlightBox.y,
+                      width: highlightBox.width,
+                      height: highlightBox.height,
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </Document>
+      </div>
     </div>
   );
 }
