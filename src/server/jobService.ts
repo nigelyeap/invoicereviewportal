@@ -170,6 +170,50 @@ export async function getAgentNotes(jobId: string): Promise<AgentNotes | null> {
   return extractAgentNotes(stored.parseContent);
 }
 
+/**
+ * Records the validation call's OCR-mode job id once client.ts's
+ * validateInvoice() has submitted (before polling completes) -- mirrors
+ * markProcessing() for the extraction side. See extractionRunner.ts's
+ * runValidationJob().
+ */
+export async function markValidationProcessing(jobId: string, params: { externalJobId: string }) {
+  return prisma.extractionJob.update({
+    where: { id: jobId },
+    data: {
+      validationStatus: "PROCESSING",
+      validationExternalJobId: params.externalJobId,
+      validationStartedAt: new Date(),
+    },
+  });
+}
+
+/** Persists the terminal validation report (raw Markdown, rendered to HTML on read -- see reportHtml.ts). */
+export async function markValidationSucceeded(jobId: string, params: { reportMarkdown: string; rawResponse: unknown }) {
+  return prisma.extractionJob.update({
+    where: { id: jobId },
+    data: {
+      validationStatus: "SUCCEEDED",
+      validationReportMarkdown: params.reportMarkdown,
+      validationRawResponse: params.rawResponse as object,
+      validationCompletedAt: new Date(),
+    },
+  });
+}
+
+export async function markValidationFailed(jobId: string, errorMessage: string) {
+  return prisma.extractionJob.update({
+    where: { id: jobId },
+    data: { validationStatus: "FAILED", validationErrorMessage: errorMessage, validationCompletedAt: new Date() },
+  });
+}
+
+export async function markValidationTimedOut(jobId: string, errorMessage: string) {
+  return prisma.extractionJob.update({
+    where: { id: jobId },
+    data: { validationStatus: "TIMED_OUT", validationErrorMessage: errorMessage, validationCompletedAt: new Date() },
+  });
+}
+
 export async function markFailed(jobId: string, errorMessage: string) {
   return prisma.extractionJob.update({
     where: { id: jobId },

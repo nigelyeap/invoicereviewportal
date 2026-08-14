@@ -58,6 +58,19 @@ enum ExtractionJobStatus {
   TIMED_OUT
 }
 
+// Validation (invoiceValidatePrompt.ts's "Table 1-5" report) runs as a
+// second, best-effort AgentStudio call chained after extraction SUCCEEDED --
+// see extractionRunner.ts. Deliberately its own status enum, not reusing
+// ExtractionJobStatus: a validation FAILED/TIMED_OUT must never affect (or be
+// confused with) the extraction's own already-SUCCEEDED status.
+enum ValidationJobStatus {
+  NOT_STARTED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  TIMED_OUT
+}
+
 model ExtractionJob {
   id                    String              @id @default(cuid())
   documentId            String
@@ -77,6 +90,15 @@ model ExtractionJob {
 
   rawResponse           Json? // full raw answer / frames, kept for audit + reprocessing
   errorMessage          String? @db.Text
+
+  // Validation report (invoiceValidatePrompt.ts) -- see ValidationJobStatus above.
+  validationStatus          ValidationJobStatus @default(NOT_STARTED)
+  validationExternalJobId   String? // AgentStudio's numeric OCR job id for the validation call, stringified
+  validationReportMarkdown  String? @db.Text // raw "Table 1-5" Markdown, rendered to HTML on read (see reportHtml.ts)
+  validationRawResponse     Json? // full raw poll response, kept for audit + reprocessing
+  validationStartedAt       DateTime?
+  validationCompletedAt     DateTime?
+  validationErrorMessage    String? @db.Text
 
   appliedFieldTemplateId String?
   appliedFieldTemplate   FieldTemplate? @relation(fields: [appliedFieldTemplateId], references: [id])

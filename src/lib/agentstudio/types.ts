@@ -227,6 +227,21 @@ export interface AgentStudioExtractionResult {
 }
 
 /**
+ * Result of a completed validation-prompt call (see invoiceValidatePrompt.ts)
+ * -- the "Table 1-5" Asset Finance Invoice Review Report. Unlike
+ * AgentStudioExtractionResult, the content is plain Markdown, not JSON --
+ * the validation prompt is explicitly instructed to never emit JSON.
+ */
+export interface AgentStudioValidationResult {
+  /** Raw Markdown report text (fenced-code-stripped), straight from parse_content. */
+  reportMarkdown: string;
+  /** Full raw poll response, kept for audit/reprocessing. */
+  rawResponse: unknown;
+  /** AgentStudio's numeric OCR-mode job id (stringified), same id family as extractInvoice's. */
+  externalJobId: string;
+}
+
+/**
  * The interface both the real (`client.ts`) and mock (`mockClient.ts`)
  * AgentStudio clients implement. Nothing outside src/server/*Service.ts and
  * worker/* should ever import a concrete implementation directly -- always
@@ -251,4 +266,22 @@ export interface AgentStudioClient {
     /** Called once the submit call returns a job id, before polling starts -- lets the caller record it for observability on a stuck job. Best-effort; a throwing callback must not fail the extraction. */
     onSubmitted?: (externalJobId: string) => void;
   }): Promise<AgentStudioExtractionResult>;
+
+  /**
+   * Runs the validation/review prompt (invoiceValidatePrompt.ts) against an
+   * already-extracted OCR result, producing the "Table 1-5" Markdown report.
+   * See client.ts's validateInvoice() for why this reuses the same
+   * offline_upload_file OCR-mode transport as extractInvoice() rather than
+   * a separate LLM provider.
+   */
+  validateInvoice(params: {
+    /** The OCR result already produced by extractInvoice() for this document. */
+    ocrResult: OcrDocument;
+    /** Same source file extractInvoice() was called with -- re-sent so the model can consult the original image if needed (see the prompt's own note on this). */
+    fileBuffer: Buffer;
+    fileName: string;
+    mimeType: string;
+    timeoutMs: number;
+    onSubmitted?: (externalJobId: string) => void;
+  }): Promise<AgentStudioValidationResult>;
 }

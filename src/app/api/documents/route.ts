@@ -7,13 +7,15 @@ const ACCEPTED_MIME_TYPES = new Set(["application/pdf", "image/png", "image/jpeg
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
 
 /**
- * Must exceed EXTRACTION_WALL_CLOCK_CEILING_MS (205s) since the after()
- * continuation below runs the full AgentStudio submit+poll sequence in this
- * same function invocation. Vercel Fluid Compute defaults to 300s max on
- * every plan (including free Hobby), so this fits without needing Pro --
- * see DEPLOYMENT.md.
+ * Must exceed EXTRACTION_WALL_CLOCK_CEILING_MS + VALIDATION_WALL_CLOCK_CEILING_MS
+ * (205s + 80s = 285s) since the after() continuation below runs the full
+ * AgentStudio submit+poll sequence for BOTH extraction and the chained
+ * validation call (see extractionRunner.ts's runValidationJob()) in this same
+ * function invocation. Vercel Fluid Compute defaults to 300s max on every
+ * plan (including free Hobby), so this fits without needing Pro -- see
+ * DEPLOYMENT.md.
  */
-export const maxDuration = 220;
+export const maxDuration = 290;
 
 /**
  * POST /api/documents -- accepts a multipart upload, persists the file via

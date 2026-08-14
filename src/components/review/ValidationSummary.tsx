@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, FileText, ScrollText, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, Loader2, ScrollText, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -112,6 +112,65 @@ function AgentNotesReport({ agentNotes }: { agentNotes: AgentNotes }) {
   );
 }
 
+type ValidationJobStatus = "NOT_STARTED" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "TIMED_OUT";
+
+/**
+ * AgentStudio's own end-to-end review of the invoice -- the "Table 1-5"
+ * Asset Finance Invoice Review Report produced by invoiceValidatePrompt.ts's
+ * validation call (see extractionRunner.ts's runValidationJob(), chained
+ * after extraction). `html` is already sanitized server-side (see
+ * reportHtml.ts) before it ever reaches this component -- safe to inject
+ * directly. Distinct from both AgentNotesReport (raw document-level remarks,
+ * pulled straight off the OCR-mode response) and FullReport below (the
+ * portal's OWN computed per-field confidence/validation): this is the
+ * agent's own narrative verdict on the whole document, tables and all.
+ */
+function AgentValidationReport({ status, html }: { status: ValidationJobStatus; html: string | null }) {
+  if (status === "SUCCEEDED" && html) {
+    return (
+      <div className="flex flex-col gap-3">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <FileText className="size-3.5" />
+          AgentStudio&apos;s review report
+        </h3>
+        <div
+          className={cn(
+            "agentstudio-report rounded-lg border px-4 py-3 text-xs",
+            "[&_h1]:mb-2 [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:tracking-tight",
+            "[&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:tracking-wide [&_h3]:text-muted-foreground [&_h3]:uppercase",
+            "[&_p]:my-1.5",
+            "[&_table]:my-2 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border-collapse",
+            "[&_th]:border-b [&_th]:bg-muted/40 [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium [&_th]:whitespace-nowrap [&_th]:text-muted-foreground",
+            "[&_td]:border-b [&_td]:px-2 [&_td]:py-1.5 [&_td]:align-top",
+            "[&_strong]:font-semibold",
+          )}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </div>
+    );
+  }
+
+  if (status === "PROCESSING" || status === "NOT_STARTED") {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Loader2 className="size-3.5 animate-spin" />
+        AgentStudio&apos;s review report is still being generated -- this can take up to a minute.
+      </p>
+    );
+  }
+
+  // FAILED / TIMED_OUT -- the extraction itself already succeeded (this
+  // dialog wouldn't be reachable otherwise), only the second, best-effort
+  // validation call didn't come back. Not an error worth alarming over: the
+  // portal-computed per-field breakdown below still covers the same ground.
+  return (
+    <p className="text-xs text-muted-foreground">
+      AgentStudio&apos;s review report couldn&apos;t be generated for this document. The per-field breakdown below is
+      still available.
+    </p>
+  );
+}
+
 /**
  * Every field's validation/confidence writeup, laid out as one continuous
  * readable report rather than the trimmed "issues only" list in the summary
@@ -120,17 +179,26 @@ function AgentNotesReport({ agentNotes }: { agentNotes: AgentNotes }) {
  * (the agent's own raw remarks), when present, above this portal-computed
  * per-field breakdown.
  */
-function FullReport({ fields, agentNotes }: { fields: ExtractedFieldRow[]; agentNotes: AgentNotes | null }) {
+function FullReport({
+  fields,
+  agentNotes,
+  validationStatus,
+  validationReportHtml,
+}: {
+  fields: ExtractedFieldRow[];
+  agentNotes: AgentNotes | null;
+  validationStatus: ValidationJobStatus;
+  validationReportHtml: string | null;
+}) {
   const groups: ExtractedFieldRow["fieldGroup"][] = ["HEADER", "LINE_ITEM", "TOTALS"];
 
   return (
     <div className="flex flex-col gap-5 text-sm">
+      <AgentValidationReport status={validationStatus} html={validationReportHtml} />
       {agentNotes && <AgentNotesReport agentNotes={agentNotes} />}
-      {agentNotes && (agentNotes.hasFlaggedNotes || agentNotes.rawTextByPage.length > 0) && (
-        <h3 className="-mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Per-field breakdown
-        </h3>
-      )}
+      <h3 className="-mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        Per-field breakdown
+      </h3>
       {groups.map((group) => {
         const groupFields = fields.filter((f) => f.fieldGroup === group);
         if (groupFields.length === 0) return null;
@@ -204,10 +272,14 @@ function FullReport({ fields, agentNotes }: { fields: ExtractedFieldRow[]; agent
 export function ValidationSummary({
   fields,
   agentNotes,
+  validationStatus,
+  validationReportHtml,
   onSelectField,
 }: {
   fields: ExtractedFieldRow[];
   agentNotes: AgentNotes | null;
+  validationStatus: ValidationJobStatus;
+  validationReportHtml: string | null;
   onSelectField: (field: ExtractedFieldRow) => void;
 }) {
   if (fields.length === 0) return null;
@@ -289,7 +361,12 @@ export function ValidationSummary({
                 </DialogDescription>
               </DialogHeader>
               <div className="min-h-0 overflow-y-auto px-6 pb-6">
-                <FullReport fields={fields} agentNotes={agentNotes} />
+                <FullReport
+                  fields={fields}
+                  agentNotes={agentNotes}
+                  validationStatus={validationStatus}
+                  validationReportHtml={validationReportHtml}
+                />
               </div>
             </DialogContent>
           </Dialog>

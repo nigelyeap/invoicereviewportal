@@ -35,6 +35,8 @@ interface JobDetail {
   appliedFieldTemplateId: string | null;
   document: { id: string; originalFilename: string; mimeType: string };
   extractedFields: ExtractedFieldRow[];
+  validationStatus: "NOT_STARTED" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "TIMED_OUT";
+  validationReportHtml: string | null;
 }
 
 interface TemplateSummary {
@@ -59,7 +61,20 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
   const queryClient = useQueryClient();
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
 
-  const jobQuery = useQuery({ queryKey: ["job", jobId], queryFn: () => fetchJob(jobId) });
+  const jobQuery = useQuery({
+    queryKey: ["job", jobId],
+    queryFn: () => fetchJob(jobId),
+    // Extraction (job.status) is already terminal by the time this page is
+    // reachable -- see the SUCCEEDED guard below -- but the validation report
+    // is a second, slower AgentStudio call chained after it server-side (see
+    // extractionRunner.ts) and may still be NOT_STARTED/PROCESSING on first
+    // load. Poll until it reaches its own terminal state so the report
+    // appears without a manual refresh.
+    refetchInterval: (query) => {
+      const validationStatus = query.state.data?.job.validationStatus;
+      return validationStatus === "PROCESSING" || validationStatus === "NOT_STARTED" ? 3000 : false;
+    },
+  });
   const templatesQuery = useQuery({ queryKey: ["templates"], queryFn: fetchTemplates });
 
   const patchField = useMutation({
@@ -216,6 +231,8 @@ export default function ReviewPage({ params }: { params: Promise<{ jobId: string
       <ValidationSummary
         fields={job.extractedFields}
         agentNotes={jobQuery.data!.agentNotes}
+        validationStatus={job.validationStatus}
+        validationReportHtml={job.validationReportHtml}
         onSelectField={selectField}
       />
 

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
-import type { AgentStudioClient, AgentStudioExtractionResult } from "./types";
+import type { AgentStudioClient, AgentStudioExtractionResult, AgentStudioValidationResult } from "./types";
 import { SAMPLE_OCR_RESULT } from "./__fixtures__/sampleOcrResult";
+import { SAMPLE_VALIDATION_REPORT_MARKDOWN } from "./__fixtures__/sampleValidationReport";
 
 /**
  * Fixture-based mock client, used whenever AGENTSTUDIO_CLIENT_MODE=mock
@@ -29,7 +30,25 @@ export function createMockAgentStudioClient(): AgentStudioClient {
     };
   }
 
-  return { extractInvoice };
+  async function validateInvoice(params: {
+    timeoutMs: number;
+    onSubmitted?: (externalJobId: string) => void;
+  }): Promise<AgentStudioValidationResult> {
+    const externalJobId = `mock_${crypto.randomBytes(6).toString("base64url")}`;
+    try {
+      params.onSubmitted?.(externalJobId);
+    } catch {
+      // best-effort only
+    }
+    await delay(Math.min(1500, params.timeoutMs));
+    return {
+      reportMarkdown: SAMPLE_VALIDATION_REPORT_MARKDOWN,
+      rawResponse: { mock: true, externalJobId },
+      externalJobId,
+    };
+  }
+
+  return { extractInvoice, validateInvoice };
 }
 
 function delay(ms: number): Promise<void> {

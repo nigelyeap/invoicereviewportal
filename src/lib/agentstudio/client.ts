@@ -1,6 +1,7 @@
 import { getEnv } from "@/lib/env";
 import { INVOICE_PARSE_MODEL, INVOICE_PARSE_PROMPT } from "./invoiceParsePrompt";
-import type { AgentStudioClient, AgentStudioExtractionResult, OcrDocument } from "./types";
+import { buildInvoiceValidatePrompt } from "./invoiceValidatePrompt";
+import type { AgentStudioClient, AgentStudioExtractionResult, AgentStudioValidationResult, OcrDocument } from "./types";
 
 /**
  * Live AgentStudio client, OCR-mode transport.
@@ -103,7 +104,78 @@ export function createLiveAgentStudioClient(): AgentStudioClient {
     return pollUntilDone({ restBase, headers, externalJobId: externalJobIdStr, timeoutMs: params.timeoutMs, pollIntervalMs: POLL_INTERVAL_MS });
   }
 
-  return { extractInvoice };
+  /**
+   * Runs invoiceValidatePrompt.ts's validation/review prompt against an
+   * already-extracted OCR result, via the SAME offline_upload_file OCR-mode
+   * transport as extractInvoice() above (spike-confirmed live: submitting
+   * this prompt as `parse_prompt` with `extra_params: "ocr"` returns the
+   * plain-Markdown "Table 1-5" report in `data.parse_content`, not JSON --
+   * the OCR-mode transport just runs `parse_model` over `parse_prompt`
+   * against the attached file, so any prompt/output-shape works, not only
+   * the structured-extraction one). `{{cTime}}`/`{{Invoice_1}}` are
+   * substituted into the prompt text ourselves before sending, since this
+   * transport has no flow-variable templating of its own.
+   *
+   * The original file is re-attached (not just the OCR JSON) so the model
+   * can fall back to the source image for ambiguous reads, per the prompt's
+   * own instruction ("do not perform OCR again unless the original document
+   * image is explicitly included and accessible").
+   *
+   * parse_model reuses INVOICE_PARSE_MODEL (gemini-2.5-pro) -- the real
+   * validation flow node's own model config was never captured (only its
+   * system prompt text was), so this is a deliberate choice to keep the
+   * whole pipeline on one already-verified model rather than a guess at a
+   * different one.
+   */
+  async function validateInvoice(params: {
+    ocrResult: OcrDocument;
+    fileBuffer: Buffer;
+    fileName: string;
+    mimeType: string;
+    timeoutMs: number;
+    onSubmitted?: (externalJobId: string) => void;
+  }): Promise<AgentStudioValidationResult> {
+    const fileFormat = params.mimeType === "application/pdf" ? "pdf" : "Image";
+    const parsePrompt = buildInvoiceValidatePrompt({ invoiceJson: params.ocrResult, now: new Date() });
+
+    const form = new FormData();
+    form.append("flow_uuid", flowUuid);
+    form.append("tenant_name", tenantName);
+    form.append("file_name", params.fileName);
+    form.append("extra_params", "ocr");
+    form.append("file_format", fileFormat);
+    form.append("parse_model", INVOICE_PARSE_MODEL);
+    form.append("parse_prompt", parsePrompt);
+    form.append("file", new Blob([new Uint8Array(params.fileBuffer)], { type: params.mimeType }), params.fileName);
+
+    const submitRes = await fetch(`${restBase}/openapi/v1/chatflow/offline_upload_file/`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    const submitJson = await submitRes.json();
+    const externalJobId = submitJson?.data?.id;
+    if (submitJson?.code !== "000000" || externalJobId === undefined || externalJobId === null) {
+      throw new Error(`offline_upload_file (validation prompt) submit failed: ${JSON.stringify(submitJson)}`);
+    }
+    const externalJobIdStr = String(externalJobId);
+
+    try {
+      params.onSubmitted?.(externalJobIdStr);
+    } catch {
+      // best-effort observability hook only, must never fail validation
+    }
+
+    return pollUntilMarkdownReady({
+      restBase,
+      headers,
+      externalJobId: externalJobIdStr,
+      timeoutMs: params.timeoutMs,
+      pollIntervalMs: POLL_INTERVAL_MS,
+    });
+  }
+
+  return { extractInvoice, validateInvoice };
 }
 
 async function pollUntilDone(params: {
@@ -154,6 +226,62 @@ async function pollUntilDone(params: {
     `extractInvoice timed out after ${timeoutMs}ms waiting for a non-empty parse_content ` +
       `(externalJobId=${externalJobId}${lastErrorMsg ? `, last error_msg=${JSON.stringify(lastErrorMsg)}` : ""})`,
   );
+}
+
+/**
+ * Same polling loop as pollUntilDone(), but for the validation prompt's
+ * plain-Markdown output instead of JSON: "ready" just means `parse_content`
+ * is a non-empty string (no JSON.parse attempt, since the prompt is
+ * explicitly instructed to never emit JSON -- see invoiceValidatePrompt.ts).
+ */
+async function pollUntilMarkdownReady(params: {
+  restBase: string;
+  headers: Record<string, string>;
+  externalJobId: string;
+  timeoutMs: number;
+  pollIntervalMs: number;
+}): Promise<AgentStudioValidationResult> {
+  const { restBase, headers, externalJobId, timeoutMs, pollIntervalMs } = params;
+  const deadline = Date.now() + timeoutMs;
+  let lastStatusJson: unknown = null;
+
+  while (Date.now() < deadline) {
+    await delay(pollIntervalMs);
+
+    const statusRes = await fetch(
+      `${restBase}/openapi/v1/chatflow/get_offline_file_status/?file_id=${encodeURIComponent(externalJobId)}`,
+      { method: "GET", headers },
+    );
+    const statusJson = await statusRes.json();
+    lastStatusJson = statusJson;
+
+    if (statusJson?.code !== "000000") {
+      continue;
+    }
+
+    const rawParseContent = statusJson?.data?.parse_content;
+    if (typeof rawParseContent === "string" && rawParseContent.trim() !== "") {
+      return { reportMarkdown: stripMarkdownFence(rawParseContent), rawResponse: statusJson, externalJobId };
+    }
+
+    // Same status:8/error_msg gotcha as pollUntilDone() -- not a trusted
+    // terminal failure signal on this transport, keep polling.
+  }
+
+  const lastErrorMsg =
+    lastStatusJson && typeof lastStatusJson === "object" && "data" in lastStatusJson
+      ? (lastStatusJson as { data?: { error_msg?: string } }).data?.error_msg
+      : undefined;
+  throw new Error(
+    `validateInvoice timed out after ${timeoutMs}ms waiting for a non-empty parse_content ` +
+      `(externalJobId=${externalJobId}${lastErrorMsg ? `, last error_msg=${JSON.stringify(lastErrorMsg)}` : ""})`,
+  );
+}
+
+/** Strips an optional ```/```markdown fence wrapper, if the model added one despite the prompt saying not to. */
+function stripMarkdownFence(text: string): string {
+  const fenceMatch = text.match(/^\s*```(?:markdown|md)?\s*([\s\S]*?)\s*```\s*$/);
+  return fenceMatch ? fenceMatch[1] : text;
 }
 
 /**
