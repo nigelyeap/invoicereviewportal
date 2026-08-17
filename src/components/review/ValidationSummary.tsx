@@ -309,7 +309,7 @@ export function ValidationSummary({
           )}
           <h2 className="text-sm font-semibold">
             {allClear
-              ? "Validation & analysis -- no issues found"
+              ? "Validation & analysis"
               : `Validation & analysis -- ${issues.length} issue${issues.length === 1 ? "" : "s"} found`}
           </h2>
         </div>
