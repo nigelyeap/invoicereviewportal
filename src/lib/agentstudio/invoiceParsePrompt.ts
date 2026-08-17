@@ -89,6 +89,25 @@ Never assign a high confidence score merely because the value appears
 reasonable.
 
 
+FIELD-SPECIFIC CONFIDENCE GUIDANCE
+
+
+- invoice_number (invoice.invoice_number): invoice numbers mix letters,
+  digits and separators (slashes, hyphens, prefixes) that are easy to
+  misread even in a sharp scan -- 0 vs O, 1 vs I vs l, 5 vs S, 8 vs B, and
+  similar-looking prefix codes. A clean-looking scan is not by itself
+  sufficient justification for 0.90+. Default to the 0.75-0.89 band and
+  only go to 0.90+ when every character is unambiguous and, ideally, the
+  same number is corroborated by a second occurrence elsewhere in the
+  document.
+- journal_number (approval_information.journal_number): this field is
+  almost always handwritten or hand-stamped in the approval section, not
+  machine-printed. Score it under the handwriting bands even when a
+  reading feels obvious: 0.50-0.74 for clearly legible handwriting,
+  0.01-0.49 if any stroke is ambiguous. Only use 0.75+ if the journal
+  number is actually machine-printed or typed rather than handwritten.
+
+
 FIELD FORMAT
 
 
